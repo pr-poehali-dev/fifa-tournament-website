@@ -1,11 +1,27 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Icon from "@/components/ui/icon";
+import AuthModal from '@/components/auth/AuthModal';
+import UserProfile from '@/components/profile/UserProfile';
+import TournamentSearch from '@/components/tournament/TournamentSearch';
+import TournamentReady from '@/components/tournament/TournamentReady';
+import TournamentLobby from '@/components/tournament/TournamentLobby';
+import MatchResult from '@/components/match/MatchResult';
+import ResultConfirmation from '@/components/match/ResultConfirmation';
+import AdminPanel from '@/components/admin/AdminPanel';
 
 const Index = () => {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [currentView, setCurrentView] = useState('home');
+  const [tournament, setTournament] = useState<any>(null);
+  const [currentMatch, setCurrentMatch] = useState<any>(null);
+  const [matchResult, setMatchResult] = useState<any>(null);
+
   const tournaments = [
     { id: 1, name: "FIFA World Cup 2024", status: "Активный", players: 32, prize: "1,000,000₽" },
     { id: 2, name: "Champions League", status: "Регистрация", players: 16, prize: "500,000₽" },
@@ -33,33 +49,148 @@ const Index = () => {
     completedMatches: 8432
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Icon name="Trophy" size={32} className="text-primary" />
-                <h1 className="text-2xl font-bold text-foreground">FIFA TOURNAMENTS</h1>
-              </div>
-              <Badge variant="destructive" className="bg-primary">PRO</Badge>
-            </div>
-            <nav className="hidden md:flex items-center space-x-6">
-              <Button variant="ghost" className="text-foreground">Турниры</Button>
-              <Button variant="ghost" className="text-foreground">Рейтинг</Button>
-              <Button variant="ghost" className="text-foreground">Матчи</Button>
-              <Button variant="ghost" className="text-foreground">Статистика</Button>
-              <Button className="bg-primary hover:bg-primary/90">
-                <Icon name="User" size={16} className="mr-2" />
-                Профиль
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+  const handleLogin = () => {
+    if (currentUser) {
+      setCurrentUser(null);
+      setCurrentView('home');
+      setTournament(null);
+      setCurrentMatch(null);
+      setMatchResult(null);
+    } else {
+      setIsAuthModalOpen(true);
+    }
+  };
 
+  const handleAuthenticated = (user: any) => {
+    setCurrentUser(user);
+    setCurrentView('home');
+  };
+
+  const handleTournamentFound = (foundTournament: any) => {
+    setTournament(foundTournament);
+    setCurrentView('tournament-ready');
+  };
+
+  const handleTournamentReady = () => {
+    setCurrentView('tournament-ready');
+  };
+
+  const handleAllReady = (readyTournament: any) => {
+    setTournament(readyTournament);
+    setCurrentView('tournament-lobby');
+  };
+
+  const handleStartMatch = (opponent: any) => {
+    const match = {
+      player1: tournament.players.find((p: any) => p.id === currentUser.id),
+      player2: opponent,
+      currentUser
+    };
+    setCurrentMatch(match);
+    setCurrentView('match-result');
+  };
+
+  const handleSubmitResult = (result: any) => {
+    setMatchResult(result);
+    setCurrentView('result-confirmation');
+  };
+
+  const handleConfirmResult = () => {
+    // Update user rating and tournament standings
+    setCurrentView('tournament-lobby');
+    setMatchResult(null);
+    setCurrentMatch(null);
+  };
+
+  const handleDispute = () => {
+    // Handle dispute creation
+    alert('Спор создан. Администрация рассмотрит его в ближайшее время.');
+    setCurrentView('tournament-lobby');
+  };
+
+  // Mock admin user check
+  const isAdmin = currentUser?.username === 'admin' || currentUser?.role === 'admin';
+
+  const renderCurrentView = () => {
+    if (!currentUser) {
+      return renderHomeContent();
+    }
+
+    switch (currentView) {
+      case 'profile':
+        return (
+          <div className="container mx-auto px-4 py-8">
+            <UserProfile user={currentUser} />
+          </div>
+        );
+      case 'tournament-search':
+        return (
+          <div className="container mx-auto px-4 py-8">
+            <TournamentSearch 
+              user={currentUser} 
+              onTournamentFound={handleTournamentFound}
+            />
+          </div>
+        );
+      case 'tournament-ready':
+        return tournament && (
+          <div className="container mx-auto px-4 py-8">
+            <TournamentReady
+              tournament={tournament}
+              currentUser={currentUser}
+              onReady={handleTournamentReady}
+              onDecline={() => {
+                setTournament(null);
+                setCurrentView('home');
+              }}
+              onAllReady={handleAllReady}
+            />
+          </div>
+        );
+      case 'tournament-lobby':
+        return tournament && (
+          <div className="container mx-auto px-4 py-8">
+            <TournamentLobby
+              tournament={tournament}
+              currentUser={currentUser}
+              onStartMatch={handleStartMatch}
+            />
+          </div>
+        );
+      case 'match-result':
+        return currentMatch && (
+          <div className="container mx-auto px-4 py-8">
+            <MatchResult
+              match={currentMatch}
+              onSubmitResult={handleSubmitResult}
+              onCancel={() => setCurrentView('tournament-lobby')}
+            />
+          </div>
+        );
+      case 'result-confirmation':
+        return matchResult && currentMatch && (
+          <div className="container mx-auto px-4 py-8">
+            <ResultConfirmation
+              result={matchResult}
+              match={currentMatch}
+              onConfirm={handleConfirmResult}
+              onDispute={handleDispute}
+            />
+          </div>
+        );
+      case 'admin':
+        return isAdmin && (
+          <div className="container mx-auto px-4 py-8">
+            <AdminPanel currentAdmin={currentUser} />
+          </div>
+        );
+      default:
+        return renderHomeContent();
+    }
+  };
+
+  const renderHomeContent = () => (
+    <>
       {/* Hero Section */}
       <section className="relative py-16 bg-gradient-to-r from-background via-muted/20 to-background">
         <div className="container mx-auto px-4">
@@ -74,7 +205,17 @@ const Index = () => {
                 Соревнуйтесь с лучшими игроками и выигрывайте призы.
               </p>
               <div className="flex space-x-4">
-                <Button size="lg" className="bg-primary hover:bg-primary/90">
+                <Button 
+                  size="lg" 
+                  className="bg-primary hover:bg-primary/90"
+                  onClick={() => {
+                    if (currentUser) {
+                      setCurrentView('tournament-search');
+                    } else {
+                      setIsAuthModalOpen(true);
+                    }
+                  }}
+                >
                   <Icon name="Play" size={20} className="mr-2" />
                   Начать игру
                 </Button>
@@ -323,6 +464,78 @@ const Index = () => {
           </Tabs>
         </div>
       </section>
+    </>
+  );
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Icon name="Trophy" size={32} className="text-primary" />
+                <h1 className="text-2xl font-bold text-foreground">FIFA TOURNAMENTS</h1>
+              </div>
+              <Badge variant="destructive" className="bg-primary">PRO</Badge>
+            </div>
+            <nav className="hidden md:flex items-center space-x-6">
+              <Button 
+                variant="ghost" 
+                className="text-foreground"
+                onClick={() => setCurrentView('home')}
+              >
+                Главная
+              </Button>
+              <Button 
+                variant="ghost" 
+                className="text-foreground"
+                onClick={() => currentUser ? setCurrentView('tournament-search') : setIsAuthModalOpen(true)}
+              >
+                Турниры
+              </Button>
+              {currentUser && (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    className="text-foreground"
+                    onClick={() => setCurrentView('profile')}
+                  >
+                    Профиль
+                  </Button>
+                  {isAdmin && (
+                    <Button 
+                      variant="ghost" 
+                      className="text-foreground"
+                      onClick={() => setCurrentView('admin')}
+                    >
+                      <Icon name="Shield" size={16} className="mr-2" />
+                      Админ
+                    </Button>
+                  )}
+                </>
+              )}
+              <Button 
+                className="bg-primary hover:bg-primary/90"
+                onClick={handleLogin}
+              >
+                <Icon name="User" size={16} className="mr-2" />
+                {currentUser ? 'Выйти' : 'Войти'}
+              </Button>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      {renderCurrentView()}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthenticated={handleAuthenticated}
+      />
     </div>
   );
 };
